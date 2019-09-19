@@ -54,8 +54,9 @@ let kb = {};
 addEventListener("keydown", e => kb[e.key] = true);
 addEventListener("keyup", e => kb[e.key] = false);
 
-function render() {
+async function render() {
 	map.clearRect(0, 0, map.width, map.height);
+	view.clearRect(0, 0, view.width, view.height);
 	map.strokeStyle = "black";
 	map.lineWidth = 5;
 	for (let wall of walls) {
@@ -67,7 +68,9 @@ function render() {
 	map.strokeStyle = "gray";
 	map.lineWidth = 1;
 
-	let rays = 20;
+	view.fillStyle = "red";
+
+	let rays = 200;
 	for (let i = 0; i < rays; i++) {
 		let a = camera.a + map_val(i, 0, rays-1, -camera.fov/2, camera.fov/2);
 		map.beginPath();
@@ -75,82 +78,69 @@ function render() {
 			camera.x * map.width,
 			camera.y * map.height,
 		);
-		let hit = cast_ray(camera.x, camera.y, a, walls);
-		map.lineTo(
-			(hit ? hit.x : camera.x + Math.cos(a)) * map.width,
-			(hit ? hit.y : camera.y + Math.sin(a)) * map.height,
-		);
-		map.stroke();
-	}
+		let ray_end = {
+			x: camera.x + Math.cos(a)*2,
+			y: camera.y + Math.sin(a)*2,
+		};
+		let hit = cast_ray(camera, ray_end, walls);
+		if (hit) {
+			map.lineTo(
+			(hit ? hit.x : 0) * map.width,
+			(hit ? hit.y : 0) * map.height,
+			);
+			map.stroke();
+			
+			let x = i*view.width/rays;
+			let w = view.width/rays;
+			let h = Math.atan(hit.h/hit.d) / (camera.fov) * view.height;
+			let y = (view.height - h)/2;
 
-	view.clearRect(0, 0, view.width, view.height);
-	view.strokeStyle = "black";
-	map.lineWidth = 5;
-	for (let i = 0; i < 100; i++);
+			view.fillRect(x, y, w, h);
+		}
+	}
 
 	window.requestAnimationFrame(render);
 }
 
-function cast_ray(x, y, a, walls) {
-	let s = { x: 0, y: 0, d: Infinity };
+function cast_ray(ray_start, ray_end, walls) {
+	let x1 = ray_start.x;
+	let y1 = ray_start.y;
+	let x2 = ray_end.x;
+	let y2 = ray_end.y;
+	let shortest = { x: 0, y: 0, d: Infinity, h: 0 };
 	for (let w of walls) {
-		let w1 = {
-			x: w.x1 - x,
-			y: w.y1 - y,
-		};
-		let w2 = {
-			x: w.x2 - x,
-			y: w.y2 - y,
-		};
+		let x3 = w.x1;
+		let y3 = w.y1;
+		let x4 = w.x2;
+		let y4 = w.y2;
+		let px =
+			((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4)) /
+			((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
+		let py =
+			((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4)) /
+			((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
 
-		const rotate = (p, a) => { return { x: p.x*Math.cos(a) + p.y*Math.sin(a), y: p.y*Math.cos(a) - p.x*Math.sin(a) } };
+		if (between(x1, px, x2) &&
+			between(x3, px, x4) &&
+			between(y1, py, y2) &&
+			between(y3, py, y4)) {
+			let d = Math.sqrt((x1-px)*(x1-px)+(y1-py)*(y1-py));
+			let h = w.h;
 
-		w1 = rotate(w1, a);
-		w2 = rotate(w2, a);
-
-		let k = (w2.y - w1.y) / (w2.x - w1.x);
-		let m = w1.y-k*w1.x;
-
-		let d = -m/k;
-		let px = d*Math.cos(-a);
-		let py = d*Math.sin(-a);
-
-		if (d < s.d) s = { x: px, y: py, d };
-	}
-	if (s.d === Infinity) {
-		return null;
-	} else {
-		return s;
-	}
-}
-
-function old_cast_ray(x, y, a, walls) {
-	const { tan, sqrt, pow, PI } = Math;
-	const A = tan(a);
-	const B = x*tan(a)-y;
-	let s = { x: 0, y: 0, d: Infinity };
-	for (let w of walls) {
-		const C = (w.y2-w.y1)/(w.x2-w.x1);
-		const D = w.x1*(w.y2-w.y1)/(w.x2-w.x1)-w.y1;
-
-		const px = (B-D)/(A-C);
-		const py = C*(B-D)/(A-C)-D;
-
-		if (((w.x1 <= px && px <= w.x2) || (w.x1 >= px && px >= w.x2)) &&
-			((w.y1 <= py && py <= w.y2) || (w.y1 >= py && py >= w.y2))) {
-			const d = sqrt(pow(x-px, 2) + pow(y-py, 2));
-			if (d < s.d) {
-				s = { x: px, y: py, d };
+			if (d < shortest.d) {
+				shortest = { x: px, y: py, d, h };
 			}
 		}
 	}
 
-	if (s.d === Infinity) {
-		return null;
+	if (shortest.d != Infinity) {
+		return shortest;
 	} else {
-		return s;
+		return null;
 	}
 }
+
+const between = (v0, v1, v2) => v0 <= v1 && v1 <= v2 || v2 <= v1 && v1 <= v0;
 
 let walls = [];
 class Wall {
