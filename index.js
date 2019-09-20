@@ -34,10 +34,10 @@ function main() {
 }
 
 function update() {
-	if (kb.d) {
+	if (kb.ArrowRight) {
 		camera.a += 0.04;
 	}
-	if (kb.a) {
+	if (kb.ArrowLeft) {
 		camera.a -= 0.04;
 	}
 	if (kb.w) {
@@ -47,6 +47,14 @@ function update() {
 	if (kb.s) {
 		camera.x -= Math.cos(camera.a) * 0.005;
 		camera.y -= Math.sin(camera.a) * 0.005;
+	}
+	if (kb.a) {
+		camera.x += Math.sin(camera.a) * 0.005;
+		camera.y -= Math.cos(camera.a) * 0.005;
+	}
+	if (kb.d) {
+		camera.x -= Math.sin(camera.a) * 0.005;
+		camera.y += Math.cos(camera.a) * 0.005;
 	}
 }
 
@@ -90,12 +98,12 @@ async function render() {
 			);
 			map.stroke();
 			
-			let x = i*view.width/rays;
-			let w = view.width/rays;
-			let h = Math.atan(hit.h/hit.d) / (camera.fov) * view.height;
+			let x = i/rays;
+			let w = 1/rays;
+			let h = hit.h / Math.tan(camera.fov/2) / hit.d * view.height / 2;
 			let y = (view.height - h)/2;
 
-			view.fillRect(x, y, w, h);
+			view.fillRect(x * view.width, y, w * view.width, h);
 		}
 	}
 
